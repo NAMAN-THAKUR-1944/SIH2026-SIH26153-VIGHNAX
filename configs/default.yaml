@@ -1,0 +1,89 @@
+# Reproducible configuration for data preparation, training and evaluation.
+seed: 42
+
+data:
+  raw_dir: datasets/ctu13
+  processed_dir: datasets/processed
+  window_s: 10            # seconds per network state S_t
+  # CTU-13 .binetflow timestamps are Prague local time (CEST = UTC+2); the
+  # captures are UTC. Verified: first packet + 7200 s == first flow to the
+  # microsecond (scenarios 47, 52). Set to null to auto-detect for other data.
+  time_offset_s: 7200
+  # CTU-13 scenario ids (Stratosphere capture numbers). Train/test captures are a subset of the
+  # dataset authors' recommended split (Garcia et al., 2014); the test botnet
+  # families (Menti, Neris) never appear in training.
+  #   46=#5 Virut  48=#7 Sogou  51=#10 Rbot  52=#11 Rbot  53=#12 NSIS.ay  54=#13 Virut
+  #   47=#6 Menti  43=#2 Neris
+  train_scenarios: [46, 48, 51, 52, 53, 54]
+  test_scenarios: [47, 43]
+  val_block: 30           # blocked validation: every 5th block of 30 windows (5 min)
+  val_every: 5
+  gap_s: 600              # split a source where traffic stops for > 10 min
+
+model:
+  latent_dim: 32
+  hidden_dim: 128
+  dropout: 0.1
+  context: 18             # windows of history the model conditions on (3 min)
+  horizon: 6              # K: forecast steps (6 x 10 s = 1 min ahead)
+  site_conditioning: false  # optional learned per-network embedding; evaluated, no validated gain (README Limitations)
+  site_dropout: 0.3         # with site_conditioning: share of training sequences shown as 'unknown network'
+
+train:
+  epochs: 80
+  batch_size: 32
+  samples_per_epoch: 12000  # training sequences per epoch, drawn equally from every dataset
+  lr: 0.001
+  weight_decay: 0.0001
+  kl_weight: 0.5
+  kl_free_nats: 0.5
+  recon_weight: 1.0
+  cls_weight: 2.0
+  stage_weight: 1.0
+  forecast_weight: 2.0
+  modality_dropout: 0.3   # drop the packet block during training -> model also works on CSV-only input
+  volume_aug: 0.7         # +-0.7 in log space (x0.5 .. x2) shift of network-size features per sequence
+  patience: 15
+
+eval:
+  threshold_rule: fpr05   # operating point: max detection with <= 5% false alarms on validation, same rule for both models
+  mc_samples: 32          # Monte-Carlo rollouts per forecast
+
+artifacts:
+  model: models/world_model.pt
+  baseline: models/baseline_lr.joblib
+  results_dir: results
+
+# Other datasets named in the PS (prepared by scripts/prepare_all.py). Each dataset is split by
+# day / capture / time range so that every test source is unseen in training.
+datasets:
+  cicids2017:                      # CIC-IDS2017 GeneratedLabelledFlows (flows with IPs)
+    zip: datasets/cicids2017/GeneratedLabelledFlows.zip
+    train: [Monday, Tuesday, Wednesday, Thursday-WorkingHours-Morning, Thursday-WorkingHours-Afternoon]
+    test: [Friday-WorkingHours-Morning, Friday-WorkingHours-Afternoon-PortScan, Friday-WorkingHours-Afternoon-DDos]
+  cicids2018:                      # CSE-CIC-IDS2018 processed CSVs (no IP addresses)
+    dir: datasets/cicids2018
+    train: [Wednesday-14-02-2018, Thursday-15-02-2018, Thursday-22-02-2018]
+    test: [Wednesday-28-02-2018, Friday-02-03-2018]
+  unswnb15:                        # UNSW-NB15 CSV records; train = 22 Jan 2015, test = 17/18 Feb 2015
+    dir: datasets/unswnb15
+    train: [1, 2]
+    test: [3, 4]
+  lanl:                            # LANL cyber1 flows + red-team events, 12 h slices (hour ranges)
+    flows: datasets/lanl/flows.txt.gz
+    redteam: datasets/lanl/redteam.txt.gz
+    train: [205-217]               # 12 h slice with red-team activity (day 8)
+    test: [293-305]
+  darpa1999:                       # DARPA 1999 inside tcpdump + master identification list
+    dir: datasets/darpa1999
+    truth: datasets/darpa1999/master_identifications.list
+    utc_offset_h: {week4: -5, week5: -4}   # EST until 4 Apr 1999, then EDT
+    train: [week4_monday, week4_wednesday, week4_thursday, week4_friday, week5_monday]
+    test: [week5_tuesday, week5_wednesday, week5_thursday, week5_friday]
+  ciciot2023:                      # CICIoT2023 per-activity captures -> benign + attack episodes
+    dir: datasets/ciciot2023
+    benign: BenignTraffic
+    benign_minutes: 10
+    attack_minutes: 10
+    train: [Recon-PortScan, DictionaryBruteForce, Mirai-greeth_flood, CommandInjection]
+    test: [Recon-HostDiscovery, Backdoor_Malware, DDoS-ICMP_Flood, Uploading_Attack]

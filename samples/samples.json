@@ -1,0 +1,61 @@
+[
+ {
+  "id": "ctu13_s47_menti",
+  "flows": "ctu13_s47_menti.binetflow.gz",
+  "time_offset_s": 7200,
+  "title": "CTU-13 \u00b7 Menti botnet (unseen family) - flows + packets, 12 min around an attack onset",
+  "pcap": "ctu13_s47_menti.pcap.bz2",
+  "dataset": "ctu13"
+ },
+ {
+  "id": "ctu13_s43_neris",
+  "flows": "ctu13_s43_neris.binetflow.gz",
+  "time_offset_s": 7200,
+  "title": "CTU-13 \u00b7 Neris botnet (unseen family) - C2 beacons escalating to spam, 12 min",
+  "dataset": "ctu13"
+ },
+ {
+  "id": "cicids2017_sample",
+  "flows": "cicids2017_sample.flows.csv.gz",
+  "time_offset_s": 0,
+  "title": "CIC-IDS2017 \u00b7 Friday (unseen day) - 12 min around an attack onset",
+  "dataset": "cicids2017"
+ },
+ {
+  "id": "cicids2018_sample",
+  "flows": "cicids2018_sample.flows.csv.gz",
+  "time_offset_s": 0,
+  "title": "CSE-CIC-IDS2018 \u00b7 unseen day - 12 min around an attack onset",
+  "dataset": "cicids2018"
+ },
+ {
+  "id": "unswnb15_sample",
+  "flows": "unswnb15_sample.flows.csv.gz",
+  "time_offset_s": 0,
+  "title": "UNSW-NB15 \u00b7 18 Feb 2015 (unseen day) - 12 min around an attack onset",
+  "dataset": "unswnb15"
+ },
+ {
+  "id": "lanl_sample",
+  "flows": "lanl_sample.flows.csv.gz",
+  "time_offset_s": 0,
+  "title": "LANL cyber1 \u00b7 red-team lateral movement (unseen slice) - 12 min around an attack onset",
+  "dataset": "lanl"
+ },
+ {
+  "id": "darpa1999_sample",
+  "flows": "darpa1999_sample.flows.csv.gz",
+  "time_offset_s": 0,
+  "title": "DARPA 1999 \u00b7 week 5 (unseen day) - 12 min around an attack onset",
+  "dataset": "darpa1999",
+  "pcap": "darpa1999_sample.pcap.bz2"
+ },
+ {
+  "id": "ciciot2023_sample",
+  "flows": "ciciot2023_sample.flows.csv.gz",
+  "time_offset_s": 0,
+  "title": "CICIoT2023 \u00b7 unseen attack type - 12 min around an attack onset",
+  "dataset": "ciciot2023",
+  "pcap": "ciciot2023_sample.pcap.bz2"
+ }
+]

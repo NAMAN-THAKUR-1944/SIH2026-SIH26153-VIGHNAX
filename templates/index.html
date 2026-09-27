@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIGHNAX · Attack Forecasting</title>
+    <script>try { var t = localStorage.getItem("vighnax-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}</script>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='chart.js') }}"></script>
+    <script src="{{ url_for('static', filename='chartjs-plugin-annotation.js') }}"></script>
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">
+        <span class="mark" role="img" aria-label="VIGHNAX logo"></span>
+        <span class="wordmark">VIGHNAX</span>
+        <span class="sub">Bhaviṣyadvaktā &middot; network attack forecasting</span>
+    </div>
+    <div class="top-right">
+        <div class="chips" id="chips">
+            <span class="chip" title="Everything runs on this machine: no internet, no cloud APIs."><span class="dot ok"></span>Offline</span>
+        </div>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light theme" title="Switch to light theme">
+            <svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1Z" fill="currentColor"/></svg>
+            <svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.1" fill="currentColor"/><path d="M8 1v1.8M8 13.2V15M1 8h1.8M13.2 8H15M3.05 3.05l1.27 1.27M11.68 11.68l1.27 1.27M3.05 12.95l1.27-1.27M11.68 4.32l1.27-1.27" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+    </div>
+</header>
+
+<main class="page">
+    <section class="card intake" id="intake">
+        <label class="drop" id="drop">
+            <input type="file" id="file-input" multiple hidden>
+            <svg viewBox="0 0 24 24" class="drop-icon" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="drop-title">Drop network traffic here</span>
+            <span class="drop-sub">Flow records from any PS dataset (CTU-13, CIC-IDS2017/2018, UNSW-NB15, LANL) and/or a packet capture (pcap, pcapng) &middot; .gz, .bz2, .zip &middot; format detected automatically</span>
+            <span class="btn ghost">Browse files</span>
+        </label>
+        <div class="samples">
+            <div class="eyebrow">Or replay a real capture from each dataset's unseen test data</div>
+            <div id="sample-list" class="sample-list"></div>
+        </div>
+    </section>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+
+    <section class="card hero" id="hero" hidden>
+        <div class="hero-grid">
+            <div class="risk">
+                <div class="eyebrow">Risk of infiltration &middot; next <span class="k-sec">60 s</span></div>
+                <div class="risk-row">
+                    <span class="risk-value mono" id="risk-value">--</span>
+                    <span class="pill" id="risk-pill"></span>
+                </div>
+                <div class="risk-band" id="risk-band">&nbsp;</div>
+            </div>
+            <div class="facts">
+                <div class="fact"><span class="fact-label">Compromised now</span><span class="fact-value mono" id="f-now">--</span></div>
+                <div class="fact"><span class="fact-label">Expected next stage</span><span class="fact-value" id="f-stage">--</span><span class="fact-sub" id="f-tech"></span></div>
+                <div class="fact"><span class="fact-label">Window</span><span class="fact-value mono" id="f-time">--</span><span class="fact-sub mono" id="f-traffic"></span></div>
+                <div class="fact"><span class="fact-label">Incidents</span><span class="fact-value mono" id="f-inc">--</span><span class="fact-sub" id="f-truth"></span></div>
+            </div>
+        </div>
+
+        <div class="section-head">
+            <div>
+                <h2>Infiltration probability over time</h2>
+                <div class="legend" id="tl-legend">
+                    <span><i class="sw line wm"></i>World model &middot; P(attack within 60 s)</span>
+                    <span><i class="sw band"></i>80 % interval</span>
+                    <span><i class="sw line lr"></i>Logistic-regression baseline</span>
+                    <span class="truth-only"><i class="sw truth"></i>Labelled malicious</span>
+                </div>
+            </div>
+            <div class="actions">
+                <span class="progress mono" id="progress"></span>
+                <div class="seg" id="speed" role="radiogroup" aria-label="Playback speed"
+                     title="How fast recorded traffic is played back. 1× = real time (a 12-minute capture takes 12 minutes, like a live network). The model itself needs about 8 ms per 10-second window on a laptop CPU.">
+                    <button data-speed="1">1×</button><button data-speed="10">10×</button><button data-speed="60" class="on">60×</button><button data-speed="0">Max</button>
+                </div>
+                <button class="btn small" id="follow" hidden title="The panels below are held on the moment you clicked; follow the newest window again">Follow live</button>
+                <button class="btn small" id="replay" disabled>Replay</button>
+                <button class="btn small" id="export" disabled title="Download a self-contained incident report of this analysis (HTML; print it to PDF from the browser)">Export report</button>
+            </div>
+        </div>
+        <div class="chart tall"><canvas id="timeline"></canvas></div>
+        <div class="ribbon-wrap">
+            <div class="ribbon" id="ribbon"></div>
+            <div class="ribbon-legend" id="ribbon-legend"></div>
+        </div>
+    </section>
+
+    <section class="card" id="sim" hidden>
+        <div class="section-head">
+            <div>
+                <h2>Forward simulation <span class="muted" id="sim-at"></span></h2>
+                <p class="lede">32 imagined futures rolled 60 s ahead. The panels below follow the newest window while traffic plays; click the timeline to hold a moment.</p>
+            </div>
+        </div>
+        <div class="split">
+            <div>
+                <div class="chart-title">P(infiltration) per future window</div>
+                <div class="chart"><canvas id="fan"></canvas></div>
+            </div>
+            <div>
+                <div class="chart-title">Predicted MITRE ATT&amp;CK stage</div>
+                <div class="chart"><canvas id="stages"></canvas></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card" id="why" hidden>
+        <div class="section-head">
+            <div>
+                <h2>Why the model thinks so <span class="muted" id="why-at"></span></h2>
+                <p class="lede">Integrated Gradients against a typical benign network state. <b class="up">Red</b> pushes towards compromise, <b class="down">blue</b> towards normal.</p>
+            </div>
+        </div>
+        <div class="chart attr"><canvas id="attr"></canvas></div>
+        <div class="chart-title spaced">Which recent windows mattered</div>
+        <div class="chart short"><canvas id="timeattr"></canvas></div>
+    </section>
+
+    <section class="card" id="flagged" hidden>
+        <div class="section-head">
+            <div>
+                <h2>Flagged hosts <span class="muted" id="fl-at"></span></h2>
+                <p class="lede" id="hosts-lede">Each host's traffic is removed in turn and the forecast recomputed; the drop is that host's contribution.</p>
+            </div>
+        </div>
+        <table class="table" id="hosts"><thead><tr><th>Host</th><th class="num">Flows</th><th>Contribution to the forecast</th></tr></thead><tbody></tbody></table>
+        <h3 class="sub-h">Flows from the flagged hosts</h3>
+        <div class="scroll"><table class="table" id="flows"><thead><tr><th>Source</th><th>Destination</th><th>Proto</th><th class="num">Packets</th><th class="num">Bytes</th><th>Dataset label</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <details class="card bench" id="bench-card">
+        <summary><span>Model card &amp; benchmark</span><span class="muted">7 datasets &middot; test days, captures, slices and botnet families never seen in training</span></summary>
+        <div id="bench"></div>
+    </details>
+</main>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script src="{{ url_for('static', filename='report.js') }}"></script>
+</body>
+</html>

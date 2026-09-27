@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+venv/
+env/
+.venv/
+
+# Editors / OS / local tooling
+.vscode/
+.idea/
+.gemini/
+.agents/
+.claude/
+.DS_Store
+Thumbs.db
+*.log
+
+# Raw and processed datasets are large (~9 GB); fetch them with scripts/fetch_datasets.sh
+datasets/
+*.pcap
+*.pcapng
+*.pcap.bz2
+# ...but the small bundled demo captures are part of the repo
+!samples/*.pcap.bz2
+
+# Office lock files
+~$*
