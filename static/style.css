@@ -197,7 +197,16 @@ h2 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -.005em; }
 .table td.mono, .table .ip { font-family: var(--mono); font-size: 12.5px; }
 .table tr.top td { background: var(--up-soft); }
 .contrib { display: flex; align-items: center; gap: 10px; }
-.contrib .bar { height: 6px; border-radius: 3px; background: var(--up); min-width: 2px; }
+.contrib .bar { height: 6px; border-radius: 3px; background: var(--up); min-width: 2px;
+                transition: width .35s cubic-bezier(.2, .7, .2, 1), background-color .35s; }
+#hosts tbody tr { transition: transform .35s cubic-bezier(.2, .7, .2, 1); }
+#hosts tbody td { transition: background-color .35s; }
+tr.enter { animation: row-in .3s ease-out; }
+@keyframes row-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .contrib .bar, #hosts tbody tr, #hosts tbody td { transition: none; }
+    tr.enter { animation: none; }
+}
 .contrib .bar.neg { background: var(--line-strong); }
 .contrib small { color: var(--text-2); font-family: var(--mono); font-size: 12px; }
 .lbl { color: var(--text-3); font-size: 12px; }

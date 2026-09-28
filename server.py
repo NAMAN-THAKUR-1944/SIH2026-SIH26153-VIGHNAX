@@ -1,6 +1,7 @@
 """VIGHNAX demo server - runs fully offline (no cloud APIs, no CDN, no web fonts).
 
     python server.py            ->  http://127.0.0.1:5000
+    python server.py --open     ->  same, and open it in the default browser (used by run.bat / run.sh)
 
 Accepts a flow CSV (CIC-IDS / CTU-13 binetflow) and/or a PCAP (.pcap/.pcapng,
 optionally .bz2/.gz), runs the trained world model, and serves the infiltration
@@ -13,11 +14,17 @@ from __future__ import annotations
 
 import bz2
 import gzip
+import argparse
 import json
 import logging
 import os
 import shutil
+import socket
+import sys
 import tempfile
+import threading
+import urllib.request
+import webbrowser
 import zipfile
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -69,9 +76,19 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/api/ping")
+def ping():
+    """Cheap liveness check (does not load the model); lets a second launch find a running server."""
+    return jsonify({"app": "vighnax"})
+
+
 @app.route("/api/status")
 def status():
-    e = engine()
+    try:
+        e = engine()
+    except Exception as exc:  # report why the model could not load instead of an HTML error page
+        logging.exception("model could not be loaded")
+        return jsonify({"error": f"the model could not be loaded: {exc}"}), 500
     return jsonify({"model": CFG["artifacts"]["model"], "window_s": e.window_s, "context": e.context,
                     "horizon": e.horizon, "thresholds": e.thresholds, "features": len(e.features),
                     "mc_samples": e.mc_samples, "samples": _samples(), "datasets": e.datasets,
@@ -247,5 +264,53 @@ def explain(analysis_id: str, idx: int):
         return jsonify({"error": str(exc)}), 409
 
 
+def _port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def _is_vighnax(port: int) -> bool:
+    for path, check in (("/api/ping", lambda body: json.loads(body).get("app") == "vighnax"),
+                        ("/", lambda body: "VIGHNAX" in body)):          # "/" also finds an older version
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=2) as r:
+                if check(r.read().decode("utf-8", "ignore")):
+                    return True
+        except Exception:
+            pass
+    return False
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="VIGHNAX offline dashboard")
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", 5000)))
+    ap.add_argument("--open", action="store_true", help="open the dashboard in the default browser")
+    args = ap.parse_args()
+    port = args.port
+    # Windows lets a second server bind a port that is already in use when SO_REUSEADDR is set (Werkzeug sets it),
+    # and then splits requests between the two servers. Refuse to share the port instead.
+    if os.name == "nt":
+        from werkzeug.serving import BaseWSGIServer
+        BaseWSGIServer.allow_reuse_address = False
+    if _port_in_use(port):
+        if _is_vighnax(port):
+            print(f"VIGHNAX is already running at http://127.0.0.1:{port} - open that address, or close the other "
+                  "server window (Ctrl+C) before starting a new one.")
+            if args.open:
+                webbrowser.open(f"http://127.0.0.1:{port}")
+            sys.exit(1)
+        free = next((p for p in range(port + 1, port + 100) if not _port_in_use(p)), None)
+        if free is None:
+            sys.exit(f"port {port} and the next 99 ports are in use - pass a free one with --port")
+        print(f"Port {port} is used by another program; using port {free} instead.")
+        port = free
+    url = f"http://127.0.0.1:{port}"
+    print(f"VIGHNAX dashboard: {url}  (press Ctrl+C to stop)")
+    if args.open:
+        threading.Timer(1.5, webbrowser.open, [url]).start()
+    app.run(host="127.0.0.1", port=port, debug=False, threaded=True)
+
+
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 5000)), debug=False, threaded=True)
+    main()

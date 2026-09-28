@@ -112,6 +112,12 @@ Full tables (pooled metrics, F1 / FPR, validation per dataset, packet-block abla
 **Requirements:** Python 3.10 or newer on Windows, Linux or macOS, and about 1.5 GB of disk for the dependencies.
 Running the dashboard needs no GPU and no internet connection.
 
+**One click:** after cloning, double-click **`run.bat`** (Windows) or run **`./run.sh`** (Linux / macOS). The first run
+creates a private Python environment in `.venv` and installs the requirements (a few minutes, internet needed once);
+every run then starts the dashboard with that environment and opens it in your browser.
+
+**Manual setup:**
+
 ```bash
 git clone https://github.com/NAMAN-THAKUR-1944/SIH2026-SIH26153-VIGHNAX.git
 cd SIH2026-SIH26153-VIGHNAX
@@ -147,6 +153,16 @@ python -m pytest -q          # test suite
 
 `http://127.0.0.1:5000/?sample=cicids2017_sample` starts a bundled capture directly (ids are in `samples/samples.json`).
 
+### Troubleshooting
+
+| Message | What to do |
+|---|---|
+| *Cannot reach the VIGHNAX server* | The server is not running (its window was closed). Start it again with `run.bat`, `./run.sh` or `python server.py` and reload the page. |
+| *VIGHNAX is already running at …* | A server from an earlier start is still open. Use the address it prints, or close that window first; two servers never share one port. |
+| *This analysis is no longer on the server* | The server was restarted, or newer analyses replaced it (it keeps the last four). Click the capture again. |
+| An error mentioning `multi_class` or scikit-learn | Your copy is older than the JSON baseline; pull the latest version. The shipped models no longer depend on the scikit-learn version. |
+| Anything else | Run it from `run.bat` / `./run.sh` (or activate `.venv` first) so the right Python and packages are used, then `python -m src.integrity` and `python -m pytest -q`. |
+
 ## Problem statement compliance
 
 | PS requirement | Where it is implemented |
@@ -163,7 +179,7 @@ python -m pytest -q          # test suite
 | Driving features (flags, ports, flow patterns) | `src/evaluation/explainer.py` — Integrated Gradients (Aumann–Shapley values) vs. an average benign state; plus leave-one-host-out occlusion for **flagged hosts & flows** |
 | Demo UI that accepts PCAP or CSV, fully offline | `server.py` + `templates/` + `static/`: one drop zone for any mix of flow CSV / binetflow / pcap / pcapng (also .gz, .bz2, .zip), file type detected from content; forecasts and explanations stream window by window; incident report export; fonts and Chart.js bundled locally, no CDN or cloud APIs |
 | Benchmark vs logistic regression on the same features (F1, precision, recall, FPR) | `evaluate.py` → `results/RESULTS.md`, `results/metrics.json` |
-| Training scripts, model weights, reproducible configuration | `train.py`, `models/world_model.pt`, `models/baseline_lr.joblib`, `configs/default.yaml` (seeded) |
+| Training scripts, model weights, reproducible configuration | `train.py`, `models/world_model.pt`, `models/baseline_lr.json`, `configs/default.yaml` (seeded) |
 
 ## Architecture
 
@@ -227,7 +243,7 @@ Reconnaissance, DoS / floods / spam → Impact, Heartbleed / DARPA "data" attack
 bash scripts/fetch_datasets.sh         # ~9 GB; gated datasets need registration details as env vars (see the script)
 python scripts/prepare_data.py         # CTU-13            -> datasets/processed/s*.pkl
 python scripts/prepare_all.py          # the other six     -> datasets/processed/<dataset>__*.pkl
-python train.py                        # -> models/world_model.pt, models/baseline_lr.joblib (GPU if available)
+python train.py                        # -> models/world_model.pt, models/baseline_lr.json (GPU if available)
 python evaluate.py                     # -> results/RESULTS.md, results/metrics.json, results/*.png
 python scripts/make_samples_all.py     # demo inputs from each dataset's test data
 python scripts/update_readme_results.py   # results table in this README
@@ -255,6 +271,7 @@ src/evaluation/                 metrics (F1/P/R/FPR/AUROC, lead time), Integrate
 src/inference/engine.py         offline streaming inference and explanations used by the dashboard
 src/integrity.py                SHA-256 verification of the shipped weights
 server.py, templates/, static/  offline Flask dashboard (fonts, Chart.js and the incident report bundled; no CDN)
+run.bat, run.sh                 one-click launchers (create .venv on the first run, start the dashboard, open the browser)
 train.py, evaluate.py           training and benchmark
 tests/                          pytest suite
 ```

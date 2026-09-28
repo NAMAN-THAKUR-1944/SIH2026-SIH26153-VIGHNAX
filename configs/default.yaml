@@ -51,7 +51,7 @@ eval:
 
 artifacts:
   model: models/world_model.pt
-  baseline: models/baseline_lr.joblib
+  baseline: models/baseline_lr.json
   results_dir: results
 
 # Other datasets named in the PS (prepared by scripts/prepare_all.py). Each dataset is split by

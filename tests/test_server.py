@@ -58,3 +58,20 @@ def test_explain_while_streaming_only_processed_windows():
     assert detail["index"] == 5 and detail["features"] and "flagged" in detail
     rest = [json.loads(line) for line in lines]
     assert rest[-1]["type"] == "done" and rest[-1]["id"] == meta["id"]
+
+def test_ping_does_not_need_the_model():
+    assert server.app.test_client().get("/api/ping").get_json() == {"app": "vighnax"}
+
+
+@pytest.mark.skipif(not os.path.isfile(os.path.join(server.ROOT, "models", "world_model.pt")), reason="needs trained model")
+def test_older_analysis_stays_explainable_after_a_newer_one():
+    """A second run (or a second tab) must not break the panels of the first one."""
+    client = server.app.test_client()
+    ids = []
+    for sample in ("ctu13_s43_neris", "cicids2017_sample"):
+        events = [json.loads(line) for line in client.post("/api/stream", data={"sample": sample, "speed": "0"})
+                  .get_data(as_text=True).splitlines() if line.strip()]
+        ids.append(next(e for e in events if e["type"] == "done")["id"])
+    res = client.get(f"/api/explain/{ids[0]}/5")
+    assert res.status_code == 200 and res.get_json()["features"]
+    assert client.get("/api/explain/unknown-id/5").status_code == 404

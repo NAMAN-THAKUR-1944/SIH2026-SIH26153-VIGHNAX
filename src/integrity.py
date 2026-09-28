@@ -50,7 +50,7 @@ def verify(paths: Iterable[str], sums_path: str) -> Dict[str, object]:
 if __name__ == "__main__":
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     models = os.path.join(root, "models")
-    res = verify([os.path.join(models, "world_model.pt"), os.path.join(models, "baseline_lr.joblib")],
+    res = verify([os.path.join(models, "world_model.pt"), os.path.join(models, "baseline_lr.json")],
                  os.path.join(models, "SHA256SUMS"))
     for name, f in res["files"].items():
         print(f"{name}: {'OK' if f['ok'] else 'MISMATCH'}  {f['sha256']}")

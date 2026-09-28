@@ -2,7 +2,7 @@
 
 Runs entirely locally (no network access, no cloud APIs).
 
-    engine = InferenceEngine("models/world_model.pt", "models/baseline_lr.joblib")
+    engine = InferenceEngine("models/world_model.pt", "models/baseline_lr.json")
     analysis = engine.analyze(flow_path="capture.binetflow", pcap_path="capture.pcap")
     detail = engine.explain_window(analysis_id, window_index)
 """
@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from collections import OrderedDict
 import time
 import uuid
 from typing import Dict, List, Optional
@@ -32,6 +33,7 @@ from src.models.world_model import CyberWorldModel
 
 LOGGER = logging.getLogger(__name__)
 
+KEEP_ANALYSES = 4   # recent analyses kept for drill-down, so an older tab or a second run does not break the panels
 PCAP_EXT = (".pcap", ".pcapng", ".cap", ".pcap.bz2", ".pcap.gz", ".pcapng.gz", ".pcapng.bz2")
 
 
@@ -70,7 +72,7 @@ class InferenceEngine:
         self.mc_samples = int(self.cfg["eval"]["mc_samples"])
         self.explainer = ForecastExplainer(self.model, self.horizon, np.asarray(ck["benign_reference"]), steps=32)
         self.baseline = BaselineLR.load(baseline_path) if baseline_path and os.path.isfile(baseline_path) else None
-        self._store: Dict[str, Dict] = {}
+        self._store: "OrderedDict[str, Dict]" = OrderedDict()
         self._lock = threading.Lock()
         # Forecasts and explanations take turns (they would otherwise compete for the interpreter lock), so the
         # compute time reported per window is the forecast's own cost even while explanations run alongside.
@@ -160,7 +162,7 @@ class InferenceEngine:
             result["truth_attack"] = states["is_attack"].astype(int).tolist()
             result["truth_stage"] = states["stage"].astype(int).tolist()
         with self._lock:
-            self._store = {result["id"]: {"x": x, "states": states, "flows": flows, "result": result}}
+            self._remember(result["id"], {"x": x, "states": states, "flows": flows, "result": result})
         return result
 
     def analyze_stream(self, flow_path: Optional[str] = None, pcap_path: Optional[str] = None,
@@ -215,7 +217,7 @@ class InferenceEngine:
             head["truth_stage"] = states["stage"].astype(int).tolist()
         entry = {"x": x, "states": states, "flows": flows, "result": None, "site": site_id, "processed": 0}
         with self._lock:
-            self._store = {aid: entry}
+            self._remember(aid, entry)
         yield head
 
         pace = self.window_s / speed if speed and speed > 0 else 0.0
@@ -255,6 +257,13 @@ class InferenceEngine:
             entry["result"] = result
         yield {"type": "done", "id": aid, "incidents": incidents, "infer_seconds": round(compute, 2),
                "ms_per_window": round(1000 * compute / max(n, 1), 2), "speed": speed}
+
+    def _remember(self, aid: str, entry: Dict) -> None:
+        """Keep the newest KEEP_ANALYSES analyses (caller holds self._lock)."""
+        self._store[aid] = entry
+        self._store.move_to_end(aid)
+        while len(self._store) > KEEP_ANALYSES:
+            self._store.popitem(last=False)
 
     @staticmethod
     def _incidents(p_any: np.ndarray, now: np.ndarray, thr_f: float, thr_n: float, gap: int = 3) -> List[Dict]:

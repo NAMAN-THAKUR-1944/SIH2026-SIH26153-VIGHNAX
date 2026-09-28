@@ -34,6 +34,16 @@ Object.assign(Chart.defaults.plugins.tooltip, {
 readTheme();
 
 const $ = (id) => document.getElementById(id);
+const MOTION = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const EASE = { duration: MOTION ? 320 : 0, easing: "easeOutCubic" };
+const MSG = {
+    unreachable: "Cannot reach the VIGHNAX server. Start it with run.bat (Windows) or ./run.sh (Linux / macOS), " +
+                 "or with python server.py, then reload this page.",
+    lost: "The connection to the VIGHNAX server was lost. Check that it is still running (run.bat / ./run.sh / " +
+          "python server.py) and try again.",
+    expired: "This analysis is no longer on the server (it was restarted, or newer analyses replaced it). " +
+             "Click the capture again to re-run it.",
+};
 const pct = (v, d = 0) => (v == null || isNaN(v)) ? "--" : (v * 100).toFixed(d) + "%";
 let A = null;              // analysis state (filled as windows stream in)
 let cursor = 0, received = 0, streaming = false, replayTimer = null, renderQueued = false;
@@ -77,7 +87,9 @@ syncThemeToggle();
 // ------------------------------------------------------------------ boot
 async function init() {
     try {
-        const st = await (await fetch("/api/status")).json();
+        const res = await fetch("/api/status");
+        const st = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(st.error || `the server answered ${res.status}`);
         SERVER = st;
         const K = st.horizon * st.window_s;
         const DS = { ctu13: "CTU-13", cicids2017: "CIC-IDS2017", cicids2018: "CSE-CIC-IDS2018", unswnb15: "UNSW-NB15",
@@ -107,8 +119,11 @@ async function init() {
         document.querySelectorAll(".sample").forEach(b => b.addEventListener("click", () => {
             const fd = new FormData(); fd.append("sample", b.dataset.id); run(fd);
         }));
-    } catch (e) { setStatus("Model not loaded: " + e, true); }
-    loadBenchmark();
+    } catch (e) {
+        setStatus(e instanceof TypeError ? MSG.unreachable : "The dashboard could not start: " + e.message, true);
+        return;
+    }
+    loadBenchmark().catch(() => {});
     const auto = new URLSearchParams(location.search).get("sample");  // e.g. /?sample=ctu13_s47_menti
     if (auto) { const fd = new FormData(); fd.append("sample", auto); run(fd); }
 }
@@ -154,7 +169,7 @@ async function run(body) {
             }
         }
     } catch (e) {
-        setStatus("Analysis failed: " + e.message, true);
+        setStatus(e instanceof TypeError ? MSG.lost : "Analysis failed: " + e.message, true);
     } finally {
         streaming = false;
         document.querySelectorAll(".sample").forEach(b => b.disabled = false);
@@ -392,17 +407,19 @@ function requestExplain(i) {
     if (explainBusy) return;            // the request in flight chases explainWanted when it returns
     explainBusy = true;
     const id = A.id;
-    fetch(`/api/explain/${id}/${i}`).then(r => r.json()).then(d => {
+    fetch(`/api/explain/${id}/${i}`)
+    .then(async r => ({ status: r.status, d: await r.json().catch(() => ({ error: `the server answered ${r.status}` })) }))
+    .then(({ status, d }) => {
         explainBusy = false;
         if (!A || A.id !== id) return;  // a new analysis has started
         if (d.error) {
-            if (!streaming) setStatus(d.error, true);
+            if (!streaming) setStatus(status === 404 ? MSG.expired : d.error, true);
         } else {
             explainCache.set(d.index, d);
             if (d.index === explainWanted || (live() && d.index > (lastExplain ? lastExplain.index : -1))) renderExplain(d);
         }
         if (explainWanted !== i) requestExplain(explainWanted);
-    }).catch(() => { explainBusy = false; });
+    }).catch(() => { explainBusy = false; if (!streaming) setStatus(MSG.unreachable, true); });
 }
 
 function clearExplain() {
@@ -411,6 +428,7 @@ function clearExplain() {
     for (const k of ["attr", "timeattr"]) if (charts[k]) { charts[k].destroy(); delete charts[k]; }
     $("hosts").querySelector("tbody").innerHTML = "";
     $("flows").querySelector("tbody").innerHTML = "";
+    delete $("flows").querySelector("tbody").dataset.key;
 }
 
 function setFollow(on) {
@@ -431,35 +449,83 @@ function renderExplain(d) {
                      borderRadius: 4, borderSkipped: false, barPercentage: 0.72, categoryPercentage: 0.9 }],
     };
     if (!charts.attr) {
-        charts.attr = new Chart($("attr"), { type: "bar", data, options: { indexAxis: "y", animation: false, maintainAspectRatio: false,
+        charts.attr = new Chart($("attr"), { type: "bar", data, options: { indexAxis: "y", animation: EASE, maintainAspectRatio: false,
             scales: { x: { grid: { color: COL.grid }, border: { display: false }, ticks: { callback: v => (v > 0 ? "+" : "") + (v * 100).toFixed(0) + " pp" } },
                       y: { grid: { display: false }, ticks: { autoSkip: false, color: COL.text2, font: { size: 12.5 } } } },
             plugins: { tooltip: { callbacks: { label: (c) => ` ${c.raw >= 0 ? "towards compromise" : "towards normal"}: ${(c.raw * 100).toFixed(2)} pp` } } } } });
-    } else { charts.attr.data = data; charts.attr.update("none"); }
+    } else { charts.attr.data = data; charts.attr.update(); }
 
     const n = d.time_attribution.length;
     const tdata = { labels: d.time_attribution.map((_, k) => `${(k - n + 1) * A.window_s}s`),
         datasets: [{ data: d.time_attribution, backgroundColor: d.time_attribution.map(v => v >= 0 ? COL.up : COL.down), borderRadius: 3, barPercentage: 0.7 }] };
     if (!charts.timeattr) {
-        charts.timeattr = new Chart($("timeattr"), { type: "bar", data: tdata, options: { animation: false, maintainAspectRatio: false,
+        charts.timeattr = new Chart($("timeattr"), { type: "bar", data: tdata, options: { animation: EASE, maintainAspectRatio: false,
             scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: { grid: { color: COL.grid }, border: { display: false }, ticks: { maxTicksLimit: 3 } } },
             plugins: { tooltip: { callbacks: { label: (c) => ` ${(c.raw * 100).toFixed(2)} pp` } } } } });
-    } else { charts.timeattr.data = tdata; charts.timeattr.update("none"); }
+    } else { charts.timeattr.data = tdata; charts.timeattr.update(); }
 
     const hosts = d.flagged.hosts;
     const heuristic = hosts.length && hosts[0].method;
     $("hosts-lede").textContent = heuristic
         ? "PCAP-only input: hosts are ranked by how extreme their behaviour is (SMTP, failed connections, scans, ICMP, DNS, volume)."
         : "Each host's traffic is removed in turn and the forecast recomputed; the drop is that host's contribution.";
+    renderHosts(hosts, heuristic);
+    renderFlows(d.flagged.flows);
+}
+
+// Host rows are keyed by address, so a host that stays flagged keeps its row: its bar grows or shrinks and the
+// row slides to its new rank (FLIP) instead of the whole table being redrawn.
+function renderHosts(hosts, heuristic) {
+    const tbody = $("hosts").querySelector("tbody");
+    const rows = hosts.slice(0, 8);
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="3" class="lbl">No flows start in this window.</td></tr>'; return; }
     const maxc = Math.max(1e-9, ...hosts.map(h => Math.abs(h.contribution)));
-    $("hosts").querySelector("tbody").innerHTML = hosts.slice(0, 8).map((h, k) => {
-        const val = heuristic ? `${(h.contribution * 100).toFixed(0)}th pct` : `${h.contribution >= 0 ? "+" : ""}${(h.contribution * 100).toFixed(1)} pp`;
-        return `<tr class="${k === 0 && h.contribution > 0 ? "top" : ""}"><td class="mono">${h.host}</td><td class="num">${h.flows}</td>` +
-            `<td><div class="contrib"><div class="bar ${h.contribution < 0 ? "neg" : ""}" style="width:${Math.max(2, Math.abs(h.contribution) / maxc * 220)}px"></div><small>${val}</small></div></td></tr>`;
-    }).join("") || '<tr><td colspan="3" class="lbl">No flows start in this window.</td></tr>';
-    $("flows").querySelector("tbody").innerHTML = d.flagged.flows.map(f => {
+    const old = new Map([...tbody.querySelectorAll("tr[data-host]")].map(tr => [tr.dataset.host, tr]));
+    const top = new Map([...old].map(([h, tr]) => [h, tr.getBoundingClientRect().top]));
+    const bars = [];
+    const trs = rows.map((h, k) => {
+        let tr = old.get(h.host);
+        if (!tr) {
+            tr = document.createElement("tr");
+            tr.dataset.host = h.host;
+            tr.innerHTML = '<td class="mono"></td><td class="num"></td><td><div class="contrib"><div class="bar"></div><small></small></div></td>';
+            tr.cells[0].textContent = h.host;
+            if (MOTION) tr.classList.add("enter");
+        }
+        tr.classList.toggle("top", k === 0 && h.contribution > 0);
+        tr.cells[1].textContent = h.flows;
+        const bar = tr.querySelector(".bar");
+        bar.classList.toggle("neg", h.contribution < 0);
+        tr.querySelector("small").textContent = heuristic ? `${(h.contribution * 100).toFixed(0)}th pct`
+            : `${h.contribution >= 0 ? "+" : ""}${(h.contribution * 100).toFixed(1)} pp`;
+        bars.push([bar, `${Math.max(2, Math.abs(h.contribution) / maxc * 220)}px`, old.has(h.host)]);
+        return tr;
+    });
+    tbody.replaceChildren(...trs);
+    for (const [bar, w, kept] of bars) {
+        if (kept || !MOTION) bar.style.width = w;
+        else { bar.style.width = "2px"; requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = w; })); }
+    }
+    if (!MOTION) return;
+    for (const tr of trs) {
+        const was = top.get(tr.dataset.host);
+        const dy = was == null ? 0 : was - tr.getBoundingClientRect().top;
+        if (!dy) continue;
+        tr.style.transition = "none";
+        tr.style.transform = `translateY(${dy}px)`;
+        requestAnimationFrame(() => requestAnimationFrame(() => { tr.style.transition = ""; tr.style.transform = ""; }));
+    }
+}
+
+// Flow rows fade in when the listed flows change; an unchanged list is left untouched.
+function renderFlows(flows) {
+    const tbody = $("flows").querySelector("tbody");
+    const key = flows.map(f => `${f.src_ip}:${f.src_port}>${f.dst_ip}:${f.dst_port}/${f.byte_count}`).join("|");
+    if (tbody.dataset.key === key) return;
+    tbody.dataset.key = key;
+    tbody.innerHTML = flows.map(f => {
         const lab = (f.label || "").replace("flow=", "");
-        return `<tr><td class="mono">${f.src_ip}:${f.src_port ?? ""}</td><td class="mono">${f.dst_ip}:${f.dst_port ?? ""}</td><td>${f.protocol}</td>` +
+        return `<tr class="${MOTION ? "enter" : ""}"><td class="mono">${f.src_ip}:${f.src_port ?? ""}</td><td class="mono">${f.dst_ip}:${f.dst_port ?? ""}</td><td>${f.protocol}</td>` +
             `<td class="num">${(f.packet_count ?? 0).toLocaleString()}</td><td class="num">${(f.byte_count ?? 0).toLocaleString()}</td>` +
             `<td class="lbl ${/botnet/i.test(lab) ? "bot" : ""}">${lab || "–"}</td></tr>`;
     }).join("");

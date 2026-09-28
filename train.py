@@ -2,7 +2,7 @@
 
     python scripts/prepare_data.py      # CTU-13 raw -> datasets/processed/s*.pkl
     python scripts/prepare_all.py       # CIC-IDS2017/2018, UNSW-NB15, LANL, DARPA 1999, CICIoT2023
-    python train.py                     # -> models/world_model.pt, models/baseline_lr.joblib
+    python train.py                     # -> models/world_model.pt, models/baseline_lr.json
     python evaluate.py                  # -> results/metrics.json, results/RESULTS.md
 
 Everything is driven by configs/default.yaml and seeded for reproducibility. Each
@@ -252,8 +252,8 @@ def main() -> None:
         y_fut_all.append(ya[~masks[k]]); valid_all.append(va[~masks[k]])
     y_fut_all, valid_all = np.concatenate(y_fut_all), np.concatenate(valid_all)
     lr = BaselineLR(random_state=cfg["seed"])
-    lr.models["detect"].fit(xs_train, y_all)
-    lr.models["forecast"].fit(xs_train[valid_all], y_fut_all[valid_all])
+    lr.fit_task("detect", xs_train, y_all)
+    lr.fit_task("forecast", xs_train[valid_all], y_fut_all[valid_all])
     xv = np.concatenate([v["x"][v["mask"]] for v in val])
     yv = np.concatenate([v["y"][v["mask"]] for v in val])
     lr.thresholds["detect"] = select_threshold(yv, lr.predict_proba(xv, "detect"), rule)
