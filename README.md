@@ -36,13 +36,15 @@ AI-based network attack forecasting from network traffic data · runs fully offl
 | Source code | this repository |
 | Readme with setup instructions | [Setup](#setup) |
 | Architecture document (max 2 pages) | [`docs/VIGHNAX_Architecture.pdf`](docs/VIGHNAX_Architecture.pdf) |
-| Demo video (max 2 minutes) | [Demo video](#demo-video) |
+| Demo video (max 2 minutes) | [YouTube, 1:59](https://youtu.be/pPTe-d_TByU) · [Demo video](#demo-video) |
 | Technical presentation (max 5 slides) | [`docs/VIGHNAX_Technical_Presentation.pdf`](docs/VIGHNAX_Technical_Presentation.pdf) |
 | Idea presentation in the official SIH 2026 template | [`docs/VIGHNAX_SIH_Idea_Presentation.pdf`](docs/VIGHNAX_SIH_Idea_Presentation.pdf) |
 
 ## Demo video
 
-**YouTube (2 min):** yt video link
+[![VIGHNAX demo video on YouTube](docs/images/demo_thumbnail.jpg)](https://youtu.be/pPTe-d_TByU)
+
+**YouTube (1:59):** [https://youtu.be/pPTe-d_TByU](https://youtu.be/pPTe-d_TByU)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard_dark.png">
