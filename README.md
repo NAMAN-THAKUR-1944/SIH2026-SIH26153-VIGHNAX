@@ -249,12 +249,11 @@ python train.py                        # -> models/world_model.pt, models/baseli
 python evaluate.py                     # -> results/RESULTS.md, results/metrics.json, results/*.png
 python scripts/make_samples_all.py     # demo inputs from each dataset's test data
 python scripts/update_readme_results.py   # results table in this README
-python scripts/make_diagram.py && python scripts/build_docs.py   # architecture document + technical presentation
-python scripts/build_sih_ppt.py        # SIH idea presentation (official template)
+python scripts/make_diagram.py        # architecture diagram (docs/images/architecture.png)
 python -m pytest -q                    # unit + self-tests
 ```
 
-The document generators additionally need `pip install python-docx python-pptx`; export the .docx / .pptx to PDF with Word / PowerPoint or LibreOffice. All hyper-parameters, dataset splits and quirk settings are in `configs/default.yaml` (seed 42). Each training epoch
+All hyper-parameters, dataset splits and quirk settings are in `configs/default.yaml` (seed 42). Each training epoch
 draws the same number of sequences from every dataset, so large datasets cannot drown out small ones.
 
 ## Repository layout
@@ -266,7 +265,7 @@ docs/                           architecture document, technical presentation, S
 models/                         trained weights (world model + LR baseline) and their SHA256SUMS
 results/                        benchmark report, metrics, figures
 samples/                        real demo inputs, one per dataset, cut from unseen test data
-scripts/                        dataset download and preparation, demo samples, README / document generators
+scripts/                        dataset download and preparation, demo samples, README results, architecture diagram
 src/data/                       parsers, dataset adapters, packet features, state builder, ATT&CK stage mapping
 src/models/                     world model, logistic-regression baseline
 src/evaluation/                 metrics (F1/P/R/FPR/AUROC, lead time), Integrated Gradients
