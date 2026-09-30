@@ -247,7 +247,8 @@ python scripts/prepare_data.py         # CTU-13            -> datasets/processed
 python scripts/prepare_all.py          # the other six     -> datasets/processed/<dataset>__*.pkl
 python train.py                        # -> models/world_model.pt, models/baseline_lr.json (GPU if available)
 python evaluate.py                     # -> results/RESULTS.md, results/metrics.json, results/*.png
-python scripts/make_samples_all.py     # demo inputs from each dataset's test data
+python scripts/make_samples.py --scenario 47 --pcap-before 3 --pcap-after 3   # CTU-13 demo inputs (scenario 43: flows only, --no-pcap)
+python scripts/make_samples_all.py     # demo inputs for the other six datasets, from their test data
 python scripts/update_readme_results.py   # results table in this README
 python scripts/make_diagram.py        # architecture diagram (docs/images/architecture.png)
 python -m pytest -q                    # unit + self-tests
